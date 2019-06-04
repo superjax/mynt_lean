@@ -12,6 +12,7 @@ MYNT_ROS::MYNT_ROS() :
 {
     nh_private.param("show_left", show_img[LEFT], false);
     nh_private.param("show_right", show_img[RIGHT], false);
+    nh_private.param("auto_exposure", auto_exposure, true);
     img_pub[LEFT] = it.advertise(printId(LEFT), 10);
     img_pub[RIGHT] = it.advertise(printId(RIGHT), 10);
     imu_pub = nh.advertise<sensor_msgs::Imu>("imu", 100);
@@ -24,6 +25,7 @@ MYNT_ROS::MYNT_ROS() :
     initCamera();
     initImuMsg();
     initCamInfo();
+    initExposure();
 }
 
 int MYNT_ROS::initCamera()
@@ -102,6 +104,14 @@ void MYNT_ROS::initCamInfo()
 
         cam_info_pub[i].publish(cam_info[i]);
     }
+}
+
+void MYNT_ROS::initExposure()
+{
+    if (auto_exposure)
+        device->SetOptionValue(Option::EXPOSURE_MODE, 0);
+    else
+        device->SetOptionValue(Option::EXPOSURE_MODE, 1);
 }
 
 ros::Time MYNT_ROS::getStamp(uint64_t stamp_us)

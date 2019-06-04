@@ -30,6 +30,7 @@ public:
     int initCamera();
     void initImuMsg();
     void initCamInfo();
+    void initExposure();
 
 
     int update();
@@ -61,6 +62,8 @@ public:
     sensor_msgs::Imu imu;
     ros::Publisher imu_pub;
 
+    bool auto_exposure;
+    int exposure;
 
     ros::Time start_time;
     uint64_t start_stamp;
