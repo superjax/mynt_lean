@@ -32,9 +32,6 @@ public:
     void initCamInfo();
     void initExposure();
 
-
-    int update();
-
     void imgCallback(int id, const mynteye::device::StreamData &data);
     void imuCallback(const mynteye::device::MotionData &data);
 
