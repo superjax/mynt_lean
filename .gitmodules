@@ -1,0 +1,3 @@
+[submodule "lib/SDK"]
+	path = lib/SDK
+	url = git@github.com:slightech/MYNT-EYE-S-SDK.git
