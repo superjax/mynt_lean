@@ -27,14 +27,17 @@ private:
 public:
 	MYNT_ROS();
 
-    int init();
+    int initCamera();
     void initImuMsg();
+    void initCamInfo();
 
 
     int update();
 
     void imgCallback(int id, const mynteye::device::StreamData &data);
     void imuCallback(const mynteye::device::MotionData &data);
+
+    void getCamInfo(int id);
 
     ros::Time getStamp(uint64_t stamp_us);
 
@@ -52,12 +55,15 @@ public:
     bool show_img[2];
     image_transport::Publisher img_pub[2];
     ros::Publisher cam_info_pub[2];
+    sensor_msgs::CameraInfo cam_info[2];
+
+
+    sensor_msgs::Imu imu;
     ros::Publisher imu_pub;
+
 
     ros::Time start_time;
     uint64_t start_stamp;
-
-    sensor_msgs::Imu imu;
 };
 
 

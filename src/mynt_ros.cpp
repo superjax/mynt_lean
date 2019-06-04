@@ -15,13 +15,18 @@ MYNT_ROS::MYNT_ROS() :
     img_pub[LEFT] = it.advertise(printId(LEFT), 10);
     img_pub[RIGHT] = it.advertise(printId(RIGHT), 10);
     imu_pub = nh.advertise<sensor_msgs::Imu>("imu", 100);
+    cam_info_pub[LEFT] = nh.advertise<sensor_msgs::CameraInfo>(printId(LEFT)+"/cam_info", 1, true);
+    cam_info_pub[RIGHT] = nh.advertise<sensor_msgs::CameraInfo>(printId(RIGHT)+"/cam_info", 1, true);
 
     start_time = ros::Time(0, 0);
     start_stamp = 0;
 
+    initCamera();
+    initImuMsg();
+    initCamInfo();
 }
 
-int MYNT_ROS::init()
+int MYNT_ROS::initCamera()
 {
     device = device::select();
     if (!device) return 1;
@@ -73,6 +78,32 @@ void MYNT_ROS::initImuMsg()
     imu.angular_velocity_covariance[8] = 0.02;
 }
 
+void MYNT_ROS::initCamInfo()
+{
+    Stream streams[2] = {Stream::LEFT, Stream::RIGHT};
+    for (int i = 0; i < 2; i++)
+    {
+        std::shared_ptr<IntrinsicsBase> cal = device->GetIntrinsics(streams[i]);
+        cam_info[i].width = cal->width;
+        cam_info[i].height = cal->height;
+
+        if (cal->calib_model() != CalibrationModel::PINHOLE)
+            ROS_FATAL("MYNT Unknown calibration type for %s camera", printId(i).c_str());
+
+        std::shared_ptr<mynteye::IntrinsicsPinhole> pinhole = std::dynamic_pointer_cast<mynteye::IntrinsicsPinhole>(cal);
+        cam_info[i].K[0] = pinhole->fx;
+        cam_info[i].K[4] = pinhole->fy;
+        cam_info[i].K[2] = pinhole->cx;
+        cam_info[i].K[5] = pinhole->cy;
+        cam_info[i].K[8] = 1.0;
+
+        cam_info[i].header.frame_id = printId(i);
+        cam_info[i].header.stamp = ros::Time::now();
+
+        cam_info_pub[i].publish(cam_info[i]);
+    }
+}
+
 ros::Time MYNT_ROS::getStamp(uint64_t stamp_us)
 {
     if (start_time.sec == 0 && start_time.nsec == 0)
@@ -89,29 +120,33 @@ void MYNT_ROS::imgCallback(int id, const device::StreamData &data)
 {
     ++img_count[id];
 
-    // Wrap a OpenCV mat around the buffer
-    cv::Mat img(cv::Size(data.frame->width(), data.frame->height()), CV_8UC1, data.frame->data());
-
-    // convert to a ROS message
-    sensor_msgs::ImagePtr msg = cv_bridge::CvImage(std_msgs::Header(), "mono8", img).toImageMsg();
-    msg->header.frame_id = printId(id);
-    msg->header.stamp = getStamp(data.img->timestamp);
-
-    img_pub[id].publish(msg);
-
-    if (show_img[0])
+    if (show_img[id] || img_pub[id].getNumSubscribers() > 0)
     {
-        cv::imshow(msg->header.frame_id, img);
-        cv::waitKey(1);
+        // Wrap a OpenCV mat around the buffer
+        cv::Mat img(cv::Size(data.frame->width(), data.frame->height()), CV_8UC1, data.frame->data());
+
+        if (img_pub[id].getNumSubscribers() > 0)
+        {
+            // convert to a ROS message (this is expensive, so only if someone is subscribing)
+            sensor_msgs::ImagePtr msg = cv_bridge::CvImage(std_msgs::Header(), "mono8", img).toImageMsg();
+            msg->header.frame_id = printId(id);
+            msg->header.stamp = getStamp(data.img->timestamp);
+
+            img_pub[id].publish(msg);
+        }
+
+        if (show_img[0])
+        {
+            cv::imshow(printId(id), img);
+            cv::waitKey(1);
+        }
     }
 }
 
 void MYNT_ROS::imuCallback(const device::MotionData &data)
 {
     // Convert to a ROS message
-
     imu.header.stamp = getStamp(data.imu->timestamp);
-
 
     imu.linear_acceleration.x = data.imu->accel[0] * 9.80665;
     imu.linear_acceleration.y = data.imu->accel[1] * 9.80665;
