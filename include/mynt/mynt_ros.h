@@ -31,6 +31,7 @@ public:
     void initImuMsg();
     void initCamInfo();
     void initExposure();
+    void initFramerate();
 
     void imgCallback(int id, const mynteye::device::StreamData &data);
     void imuCallback(const mynteye::device::MotionData &data);
@@ -49,6 +50,8 @@ public:
     ros::NodeHandle nh_private;
     image_transport::ImageTransport it;
 
+    int stream_id;
+    int framerate;
     int img_count[2];
     bool show_img[2];
     image_transport::Publisher img_pub[2];
@@ -56,6 +59,7 @@ public:
     sensor_msgs::CameraInfo cam_info[2];
 
 
+    int imu_rate;
     sensor_msgs::Imu imu;
     ros::Publisher imu_pub;
 

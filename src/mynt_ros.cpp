@@ -13,6 +13,9 @@ MYNT_ROS::MYNT_ROS() :
     nh_private.param("show_left", show_img[LEFT], false);
     nh_private.param("show_right", show_img[RIGHT], false);
     nh_private.param("auto_exposure", auto_exposure, true);
+    nh_private.param("framerate", framerate, 20);
+    nh_private.param("imu_rate", imu_rate, 250);
+    nh_private.param("stream_id", stream_id, 1);
     img_pub[LEFT] = it.advertise(printId(LEFT), 10);
     img_pub[RIGHT] = it.advertise(printId(RIGHT), 10);
     imu_pub = nh.advertise<sensor_msgs::Imu>("imu", 100);
@@ -26,14 +29,38 @@ MYNT_ROS::MYNT_ROS() :
     initImuMsg();
     initCamInfo();
     initExposure();
+    initFramerate();
 }
 
 int MYNT_ROS::initCamera()
 {
     device = device::select();
-    if (!device) return 1;
+    if (!device)
+    {
+        ROS_ERROR("No MYNT DEVICE FOUND");
+        throw std::runtime_error("No Mynt device found");
+    }
 
-    device->ConfigStreamRequest(device->GetStreamRequest());
+    std::vector<StreamRequest> requests = device->GetStreamRequests();
+
+    ROS_INFO("Found MYNT Device: Supported Streams:");
+    for (auto& req : requests)
+    {
+        ROS_INFO_STREAM(req);
+    }
+    ROS_INFO_STREAM("Selected Stream id: " << stream_id);
+
+    if (stream_id >= requests.size())
+    {
+        ROS_ERROR("Unsupported Stream ID");
+        throw std::runtime_error("Unsupported Stream ID");
+    }
+    device->ConfigStreamRequest(requests[stream_id]);
+
+//    StreamRequest req = device->GetStreamRequest();
+//    req.width = width;
+//    req.height = height;
+//    device->ConfigStreamRequest(req);
     img_count[LEFT] = 0;
     img_count[RIGHT] = 0;
     imu_count = 0;
@@ -51,8 +78,15 @@ int MYNT_ROS::initCamera()
         this->imuCallback(data);
     });
 
-    device->EnableMotionDatas();
-    device->Start(Source::ALL);
+    if (imu_rate > 0)
+    {
+        device->EnableMotionDatas();
+        device->Start(Source::ALL);
+    }
+    else
+    {
+        device->Start(Source::VIDEO_STREAMING);
+    }
 }
 
 void MYNT_ROS::initImuMsg()
@@ -112,6 +146,26 @@ void MYNT_ROS::initExposure()
         device->SetOptionValue(Option::EXPOSURE_MODE, 0);
     else
         device->SetOptionValue(Option::EXPOSURE_MODE, 1);
+
+    device->SetOptionValue(Option::HDR_MODE, 1);
+}
+
+void MYNT_ROS::initFramerate()
+{
+    device->SetOptionValue(Option::FRAME_RATE, framerate);
+    ROS_INFO_STREAM("Set FRAME_RATE to " << device->GetOptionValue(Option::FRAME_RATE));
+    if (imu_rate > 0)
+    {
+        // IMU_FREQUENCY values: 100, 200, 250, 333, 500
+        device->SetOptionValue(Option::IMU_FREQUENCY, imu_rate);
+        ROS_INFO_STREAM("Set IMU_FREQUENCY to " << device->GetOptionValue(Option::IMU_FREQUENCY));
+    }
+    else
+    {
+
+        ROS_INFO_STREAM("Disabling IMU");
+    }
+
 }
 
 ros::Time MYNT_ROS::getStamp(uint64_t stamp_us)
